@@ -1,4 +1,10 @@
-  '.pde':
-    'newsketch':
-      'prefix':'newsketch'
-      'body':'void setup(){\n\t\$1\n}\n\nvoid draw(){\n\t$2\n}'
+  '.source':
+    'newprocessingsketch':
+      'prefix':'newprocessingsketch'
+      'body':"""
+void setup(){
+  $1
+}
+void draw(){
+  $2
+}"""

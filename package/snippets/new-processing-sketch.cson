@@ -1,0 +1,4 @@
+  '.pde':
+    'newsketch':
+      'prefix':'newsketch'
+      'body':'void setup(){\n\t\$1\n}\n\nvoid draw(){\n\t$2\n}'

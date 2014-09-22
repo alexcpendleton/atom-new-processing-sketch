@@ -84,15 +84,23 @@ class AddNewSketchDialog extends AddDialog
 class Sketcher
   constructor: (@lexicon, @validator) ->
 
+  queryTreeView: ()->
+    return atom.workspaceView.find(".tree-view").view()
+
   go: () ->
     # TODO: Maybe "cache" this query result somewhere
-    treeView = atom.workspaceView.find(".tree-view").view()
+    treeView = @queryTreeView()
 
     # TODO:Next block is copied from tree-view.add
     # Theoretically if they were to change their behavior
     # this would be out of sync and might break. Probably not a big deal?
     selectedEntry = treeView.selectedEntry() or @root
     selectedPath = selectedEntry.getPath()
+
+    atom.workspaceView.on "new-processing-sketch:file-created",\
+    (event, fullFilePath, content)->
+      @onFileCreated(fullFilePath, content)
+
 
     addDialog = new AddNewSketchDialog(selectedPath, @lexicon, @validator)
     addDialog.on 'directory-created', (event, createdPath) =>
@@ -102,10 +110,21 @@ class Sketcher
 
     addDialog.attach()
 
+  onFileCreated: (filePath, content)->
+    @selectFileInTreeView(filePath)
+    @expandSnippetInFile(filePath)
+
+  expandSnippetInFile: (filePath) ->
+    #TODO: this
+
+  selectFileInTreeView:(filePath) ->
+    treeView = @queryTreeView()
+    treeView.selectEntryForPath(filePath)
+
+
   onDirectoryCreated: (directoryPath) ->
     fileMaker = new SketchFileMaker()
     fileMaker.makeIn directoryPath
-    console.log 'directory-created', arguments
 
   class SketchFileMaker
     constructor: () ->
@@ -125,4 +144,5 @@ class Sketcher
 
     writeNewSketchFile: (fullFilePath, content) ->
       fs.writeFileSync(fullFilePath, content)
-      console.log 'file-created', [fullFilePath]
+      atom.workspaceView.trigger("new-processing-sketch:file-created", \
+      [fullFilePath, content])

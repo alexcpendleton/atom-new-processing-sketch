@@ -2,6 +2,9 @@ fs = require 'fs-plus'
 path = require 'path'
 AddDialog = require atom.packages.resolvePackagePath('tree-view') \
   + '/lib/add-dialog'
+{Emitter} = require 'event-kit'
+
+emitter = new Emitter()
 
 module.exports =
   activate: ->
@@ -25,6 +28,9 @@ module.exports =
 
     sketcher.go()
     # TODO: Add events/messages
+
+  deactivate: ->
+    emitter.dispose()
 
 class SketchNameValidator
   constructor: (@lexicon) ->
@@ -74,7 +80,6 @@ class AddNewSketchDialog extends AddDialog
     else
       # Also run Atom's base validation, and actually create
       # the sketch files using the built-in Atom functionality
-      console.log("successful onConfirm", relativePath)
       super(relativePath)
 
   getValidationErrors: (relativePath) ->
@@ -88,29 +93,25 @@ class Sketcher
     return atom.workspaceView.find(".tree-view").view()
 
   go: () ->
-    # TODO: Maybe "cache" this query result somewhere
     treeView = @queryTreeView()
 
-    # TODO:Next block is copied from tree-view.add
-    # Theoretically if they were to change their behavior
-    # this would be out of sync and might break. Probably not a big deal?
     selectedEntry = treeView.selectedEntry() or @root
     selectedPath = selectedEntry.getPath()
 
-    atom.workspaceView.on "new-processing-sketch:file-created",\
-    (event, fullFilePath, content)->
+    emitter.on "new-processing-sketch:sketch-created", \
+    (fullFilePath, content) =>
+      console.log "nps:sc", arguments
       @onFileCreated(fullFilePath, content)
 
 
     addDialog = new AddNewSketchDialog(selectedPath, @lexicon, @validator)
-    addDialog.on 'directory-created', (event, createdPath) =>
-      #console.log event, createdPath, addDialog
-      @onDirectoryCreated createdPath
-      false
-
+    addDialog.on 'directory-created', (event, directoryPath) =>
+      @onDirectoryCreated(event, directoryPath)
     addDialog.attach()
 
-  onFileCreated: (filePath, content)->
+  onFileCreated: (parameters)->
+    filePath = parameters.filePath
+    console.log "onFileCreated: ", parameters
     @selectFileInTreeView(filePath)
     @expandSnippetInFile(filePath)
 
@@ -119,16 +120,17 @@ class Sketcher
 
   selectFileInTreeView:(filePath) ->
     treeView = @queryTreeView()
-    treeView.selectEntryForPath(filePath)
+    #treeView.selectEntryForPath(filePath)
+    #treeView.openSelectedEntry(true)# "tree-view:open-selected-entry"
+    atom.workspaceView.open(filePath)
+    atom.workspaceView.trigger 'tree-view:reveal-active-file'
 
-
-  onDirectoryCreated: (directoryPath) ->
+  onDirectoryCreated: (event, directoryPath) ->
     fileMaker = new SketchFileMaker()
     fileMaker.makeIn directoryPath
 
   class SketchFileMaker
     constructor: () ->
-      #nothing yet
 
     extractPdeFileNameFromDirectoryPath: (directoryPath) ->
       result = path.basename directoryPath
@@ -138,11 +140,11 @@ class Sketcher
       fileName = @extractPdeFileNameFromDirectoryPath directoryPath
       fileName = fileName + '.pde'
       fullFilePath = path.join(directoryPath, fileName)
-      # TODO: any template when writing the file?
-      # TODO: Need to open the file in the editor to expand the snippet
       @writeNewSketchFile(fullFilePath, "")
 
     writeNewSketchFile: (fullFilePath, content) ->
       fs.writeFileSync(fullFilePath, content)
-      atom.workspaceView.trigger("new-processing-sketch:file-created", \
-      [fullFilePath, content])
+      #TODO: remove this testing string
+      emitter.emit("new-processing-sketch:sketch-created",\
+      "filePath":fullFilePath
+      "content":content)

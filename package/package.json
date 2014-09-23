@@ -1,16 +1,17 @@
 {
-  "name":"new-processing-sketch",
-  "version":"0.0.1",
-  "main":"./lib/main",
-  "description":"Creates a new processing sketch folder and .pde with the same name.",
-  "repository":"",
-  "license":"MIT",
-  "engines":{
-    "atom":"*"
+  "name": "new-processing-sketch",
+  "version": "0.0.1",
+  "main": "./lib/main",
+  "description": "Creates a new processing sketch folder and .pde with the same name.",
+  "repository": "",
+  "license": "MIT",
+  "engines": {
+    "atom": "*"
   },
-  "dependencies":{
-    "fs-plus":"2.x",
-    "path":"0.x"
+  "dependencies": {
+    "fs-plus": "^2.x",
+    "event-kit": "^0.7.2",
+    "path": "^0.x"
   },
-  "activationEvents":["new-processing-sketch:create"]
+  "activationEvents": ["new-processing-sketch:create"]
 }

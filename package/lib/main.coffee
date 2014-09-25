@@ -17,7 +17,8 @@ module.exports =
       "SketchContainsIllegalCharacters": "The sketch name must contain only digits, letters, and underscores."
       "SketchMustBeLongerThan": "The sketch name must be at least three characters long."
       "ErrorDelimiter": " "
-
+    atom.config.setDefaults "new-processing-sketch",
+      "default-snippet": "newprocessingsketch"
 
   create: ->
     # TODO: Refactor this, it smells a bit. Look into DI containers for node?
@@ -95,7 +96,7 @@ class Sketcher
   go: () ->
     treeView = @queryTreeView()
 
-    selectedEntry = treeView.selectedEntry() or @root
+    selectedEntry = treeView.selectedEntry() or treeView.root
     selectedPath = selectedEntry.getPath()
 
     emitter.on "new-processing-sketch:sketch-created", \
@@ -116,7 +117,9 @@ class Sketcher
     @expandSnippetInFile(filePath)
 
   expandSnippetInFile: (filePath) ->
-    #TODO: this
+    editor = atom.workspaceView.getActiveView()
+    expander = new DefaultSnippetExpander(editor)
+    expander.expand()
 
   selectFileInTreeView:(filePath) ->
     treeView = @queryTreeView()
@@ -129,22 +132,36 @@ class Sketcher
     fileMaker = new SketchFileMaker()
     fileMaker.makeIn directoryPath
 
-  class SketchFileMaker
-    constructor: () ->
+class SketchFileMaker
+  constructor: () ->
 
-    extractPdeFileNameFromDirectoryPath: (directoryPath) ->
-      result = path.basename directoryPath
-      return result
+  extractPdeFileNameFromDirectoryPath: (directoryPath) ->
+    result = path.basename directoryPath
+    return result
 
-    makeIn: (directoryPath) ->
-      fileName = @extractPdeFileNameFromDirectoryPath directoryPath
-      fileName = fileName + '.pde'
-      fullFilePath = path.join(directoryPath, fileName)
-      @writeNewSketchFile(fullFilePath, "")
+  makeIn: (directoryPath) ->
+    fileName = @extractPdeFileNameFromDirectoryPath directoryPath
+    fileName = fileName + '.pde'
+    fullFilePath = path.join(directoryPath, fileName)
+    @writeNewSketchFile(fullFilePath, "")
 
-    writeNewSketchFile: (fullFilePath, content) ->
-      fs.writeFileSync(fullFilePath, content)
-      #TODO: remove this testing string
-      emitter.emit("new-processing-sketch:sketch-created",\
-      "filePath":fullFilePath
-      "content":content)
+  writeNewSketchFile: (fullFilePath, content) ->
+    fs.writeFileSync(fullFilePath, content)
+    emitter.emit("new-processing-sketch:sketch-created",\
+    "filePath":fullFilePath
+    "content":content)
+
+class DefaultSnippetExpander
+  constructor: (@editorView) ->
+
+  expand: ->
+    snippet = @getDefaultSnippet()
+    # A completely empty string ("") as a setting will cause Atom to use the
+    # default value. So if someone wants to overwrite the default snippet with
+    # an empty snippet they should use a space " ".
+    if(snippet && snippet.trim().length > 0)
+      @editorView.setText(snippet)
+      @editorView.trigger("snippets:expand")
+
+  getDefaultSnippet: ->
+    return atom.config.get("new-processing-sketch.default-snippet")

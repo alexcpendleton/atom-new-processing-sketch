@@ -14,8 +14,10 @@ module.exports =
     # Hacky version of "localization" for less refactoring later
     @lexiconShim =
       "SketchStartsWithNumeric": "The sketch name cannot start with a number."
-      "SketchContainsIllegalCharacters": "The sketch name must contain only digits, letters, and underscores."
-      "SketchMustBeLongerThan": "The sketch name must be at least three characters long."
+      "SketchContainsIllegalCharacters": \
+        "The sketch name must contain only digits, letters, and underscores."
+      "SketchMustBeLongerThan": \
+        "The sketch name must be at least three characters long."
       "ErrorDelimiter": " "
     atom.config.setDefaults "new-processing-sketch",
       "default-snippet": "newprocessingsketch"
@@ -24,8 +26,8 @@ module.exports =
     # TODO: Refactor this, it smells a bit. Look into DI containers for node?
     # At least fix the smelliness around the validator instantiation
     # and multiple lexicon assignments
-    sketcher = new Sketcher(@lexiconShim, \
-      new SketchNameValidator(@lexiconShim))
+
+    sketcher = new NewSketchBuilder(@lexiconShim)
 
     sketcher.go()
     # TODO: Add events/messages
@@ -56,7 +58,7 @@ class SketchNameValidator
     # even a practical concern to have. Figure out those.
     # Maybe it can be configurable?
 
-    if !/^[a-zA-Z0-9_]*$/.test(sketchName)
+    if not /^[a-zA-Z0-9_]*$/.test(sketchName)
       addTo.push @lexicon["SketchContainsIllegalCharacters"]
 
   containsMinimumCharacters:(addTo, sketchName) ->
@@ -68,14 +70,13 @@ class SketchNameValidator
 
 
 class AddNewSketchDialog extends AddDialog
-  constructor: (initialPath, @lexicon, @validator) ->
+  constructor: (initialPath, @lexicon) ->
     super(initialPath, false) #Never creating a file in this dialog
 
   onConfirm: (relativePath) ->
     errors = @getValidationErrors relativePath
 
     if errors.length > 0
-      console.log("errors:", errors)
       message = errors.join @lexicon["ErrorDelimiter"]
       @showError message
     else
@@ -83,12 +84,19 @@ class AddNewSketchDialog extends AddDialog
       # the sketch files using the built-in Atom functionality
       super(relativePath)
 
-  getValidationErrors: (relativePath) ->
-    sketchName = path.basename(relativePath)
-    return @validator.validateAll(sketchName)
+  getValidator: ->
+    return new SketchNameValidator(@lexicon)
 
-class Sketcher
-  constructor: (@lexicon, @validator) ->
+  getValidationErrors: (relativePath) ->
+    validator = @getValidator()
+    sketchName = path.basename(relativePath)
+    return validator.validateAll(sketchName)
+
+class NewSketchBuilder
+  constructor: (@lexicon) ->
+
+  getValidator:() ->
+    return new SketchNameValidator(@lexicon)
 
   queryTreeView: ()->
     return atom.workspaceView.find(".tree-view").view()
@@ -101,18 +109,15 @@ class Sketcher
 
     emitter.on "new-processing-sketch:sketch-created", \
     (fullFilePath, content) =>
-      console.log "nps:sc", arguments
       @onFileCreated(fullFilePath, content)
 
-
-    addDialog = new AddNewSketchDialog(selectedPath, @lexicon, @validator)
+    addDialog = new AddNewSketchDialog(selectedPath, @lexicon)
     addDialog.on 'directory-created', (event, directoryPath) =>
       @onDirectoryCreated(event, directoryPath)
     addDialog.attach()
 
   onFileCreated: (parameters)->
     filePath = parameters.filePath
-    console.log "onFileCreated: ", parameters
     @selectFileInTreeView(filePath)
     @expandSnippetInFile(filePath)
 
@@ -126,17 +131,21 @@ class Sketcher
     #treeView.selectEntryForPath(filePath)
     #treeView.openSelectedEntry(true)# "tree-view:open-selected-entry"
     atom.workspaceView.open(filePath)
+    return # Revealing doesn't seem to work right, don't bother with it
     atom.workspaceView.trigger 'tree-view:reveal-active-file'
 
+  getFileMaker: ->
+    return new SketchFileMaker()
+
   onDirectoryCreated: (event, directoryPath) ->
-    fileMaker = new SketchFileMaker()
+    fileMaker = @getFileMaker()
     fileMaker.makeIn directoryPath
 
 class SketchFileMaker
   constructor: () ->
 
   extractPdeFileNameFromDirectoryPath: (directoryPath) ->
-    result = path.basename directoryPath
+    result = path.basename(directoryPath)
     return result
 
   makeIn: (directoryPath) ->
@@ -159,7 +168,7 @@ class DefaultSnippetExpander
     # A completely empty string ("") as a setting will cause Atom to use the
     # default value. So if someone wants to overwrite the default snippet with
     # an empty snippet they should use a space " ".
-    if(snippet && snippet.trim().length > 0)
+    if(snippet and snippet.trim().length > 0)
       @editorView.setText(snippet)
       @editorView.trigger("snippets:expand")
 
